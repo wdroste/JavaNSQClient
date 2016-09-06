@@ -1,13 +1,11 @@
 package com.github.brainlag.nsq;
 
-import com.github.brainlag.nsq.callbacks.NSQErrorCallback;
-import com.github.brainlag.nsq.exceptions.NSQException;
-import com.github.brainlag.nsq.exceptions.NoConnectionsException;
-import com.github.brainlag.nsq.frames.ErrorFrame;
-import com.github.brainlag.nsq.frames.MessageFrame;
-import com.github.brainlag.nsq.frames.NSQFrame;
-import com.github.brainlag.nsq.frames.ResponseFrame;
-import com.github.brainlag.nsq.netty.NSQClientInitializer;
+import java.net.InetSocketAddress;
+import java.util.Date;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -17,62 +15,74 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
-import org.apache.logging.log4j.LogManager;
+import lombok.val;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.util.Date;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.github.brainlag.nsq.callbacks.NSQErrorCallback;
+import com.github.brainlag.nsq.callbacks.NSQMessageCallback;
+import com.github.brainlag.nsq.exceptions.NSQException;
+import com.github.brainlag.nsq.exceptions.NoConnectionsException;
+import com.github.brainlag.nsq.frames.ErrorFrame;
+import com.github.brainlag.nsq.frames.MessageFrame;
+import com.github.brainlag.nsq.frames.NSQFrame;
+import com.github.brainlag.nsq.frames.ResponseFrame;
+import com.github.brainlag.nsq.netty.NSQClientInitializer;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Connection {
+    private static final Logger LOG = LoggerFactory.getLogger(Connection.class);
+
     public static final byte[] MAGIC_PROTOCOL_VERSION = "  V2".getBytes();
-    public static final AttributeKey<Connection> STATE =
-            AttributeKey.valueOf("Connection.state");
+    public static final AttributeKey<Connection> STATE = AttributeKey.valueOf("Connection.state");
+    private static EventLoopGroup defaultGroup = null;
     private final ServerAddress address;
     private final Channel channel;
-    private NSQConsumer consumer = null;
-    private NSQErrorCallback errorCallback = null;
     private final LinkedBlockingQueue<NSQCommand> requests = new LinkedBlockingQueue<>(1);
     private final LinkedBlockingQueue<NSQFrame> responses = new LinkedBlockingQueue<>(1);
-    private static EventLoopGroup defaultGroup = null;
     private final EventLoopGroup eventLoopGroup;
     private final NSQConfig config;
+    private NSQMessageCallback messageCallback = null;
+    private NSQErrorCallback errorCallback = null;
 
+    private int messagesPerBatch = 200;
+    private final AtomicLong totalMessages = new AtomicLong(0l);
 
     public Connection(final ServerAddress serverAddress, final NSQConfig config) throws NoConnectionsException {
         this.address = serverAddress;
         this.config = config;
-        final Bootstrap bootstrap = new Bootstrap();
-        eventLoopGroup = config.getEventLoopGroup() != null ? config.getEventLoopGroup() : getDefaultGroup();
+        val bootstrap = new Bootstrap();
+        this.eventLoopGroup = config.getEventLoopGroup() != null ? config.getEventLoopGroup() : getDefaultGroup();
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.handler(new NSQClientInitializer());
         // Start the connection attempt.
-        final ChannelFuture future = bootstrap.connect(new InetSocketAddress(serverAddress.getHost(),
-                serverAddress.getPort()));
+        final ChannelFuture future = bootstrap.connect(
+                new InetSocketAddress(serverAddress.getHost(), serverAddress.getPort()));
 
         // Wait until the connection attempt succeeds or fails.
-        channel = future.awaitUninterruptibly().channel();
+        this.channel = future.awaitUninterruptibly().channel();
         if (!future.isSuccess()) {
             throw new NoConnectionsException("Could not connect to server", future.cause());
         }
-        LogManager.getLogger(this).info("Created connection: " + serverAddress.toString());
+        LOG.info("Created connection: {}", serverAddress);
         this.channel.attr(STATE).set(this);
         final ByteBuf buf = Unpooled.buffer();
         buf.writeBytes(MAGIC_PROTOCOL_VERSION);
-        channel.write(buf);
-        channel.flush();
+        this.channel.write(buf);
+        this.channel.flush();
 
-        //indentify
-        final NSQCommand ident = NSQCommand.instance("IDENTIFY", config.toString().getBytes());
+        //identify
+        val ident = NSQCommand.instance("IDENTIFY", config.toString().getBytes());
         try {
-            final NSQFrame response = commandAndWait(ident);
+            final NSQFrame response = this.commandAndWait(ident);
             if (response != null) {
-                LogManager.getLogger(this).info("Server identification: " + ((ResponseFrame) response).getMessage());
+                LOG.info("Server identification: {}", ((ResponseFrame) response).getMessage());
             }
         } catch (final TimeoutException e) {
-            LogManager.getLogger(this).error("Creating connection timed out", e);
+            LOG.error("Creating connection timed out", e);
             close();
         }
     }
@@ -100,9 +110,9 @@ public class Connection {
             } else {
                 if (!requests.isEmpty()) {
                     try {
-                        responses.offer(frame, 20, TimeUnit.SECONDS);
+                        responses.offer(frame, 20, SECONDS);
                     } catch (final InterruptedException e) {
-                        LogManager.getLogger(this).error("Thread was interruped, probably shuthing down", e);
+                        LOG.error("Thread was interrupted, probably shutting down", e);
                         close();
                     }
                 }
@@ -111,31 +121,39 @@ public class Connection {
         }
 
         if (frame instanceof ErrorFrame) {
-            if (errorCallback != null) {
-                errorCallback.error(NSQException.of((ErrorFrame) frame));
+            if (this.errorCallback != null) {
+                this.errorCallback.error(NSQException.of((ErrorFrame) frame));
             }
-            responses.add(frame);
+            this.responses.add(frame);
             return;
         }
 
         if (frame instanceof MessageFrame) {
-            final MessageFrame msg = (MessageFrame) frame;
-
-            final NSQMessage message = new NSQMessage();
-            message.setAttempts(msg.getAttempts());
-            message.setConnection(this);
-            message.setId(msg.getMessageId());
-            message.setMessage(msg.getMessageBody());
-            message.setTimestamp(new Date(TimeUnit.NANOSECONDS.toMillis(msg.getTimestamp())));
-            consumer.processMessage(message);
+            val msg = (MessageFrame) frame;
+            val message = NSQMessage.builder()
+                    .connection(this)
+                    .id(msg.getMessageId())
+                    .message(msg.getMessageBody())
+                    .timestamp(new Date(NANOSECONDS.toMillis(msg.getTimestamp())))
+                    .build();
+            this.processMessage(message);
             return;
         }
-        LogManager.getLogger(this).warn("Unknown frame type: " + frame);
+        LOG.warn("Unknown frame type: " + frame);
     }
 
+    void processMessage(final NSQMessage message) {
+        this.messageCallback.message(message);
+
+        final long tot = totalMessages.incrementAndGet();
+        if (tot % messagesPerBatch > (messagesPerBatch / 2)) {
+            //request some more!
+            message.rdy(messagesPerBatch);
+        }
+    }
 
     private void heartbeat() {
-        LogManager.getLogger(this).trace("HEARTBEAT!");
+        LOG.trace("HEARTBEAT!");
         command(NSQCommand.instance("NOP"));
     }
 
@@ -144,39 +162,39 @@ public class Connection {
     }
 
     public void close() {
-        LogManager.getLogger(this).info("Closing  connection: " + this);
+        LOG.info("Closing  connection: " + this);
         channel.disconnect();
     }
 
     public NSQFrame commandAndWait(final NSQCommand command) throws TimeoutException {
         try {
-            if (!requests.offer(command, 15, TimeUnit.SECONDS)) {
+            if (!requests.offer(command, 15, SECONDS)) {
                 throw new TimeoutException("command: " + command + " timedout");
             }
 
-            responses.clear(); //clear the response queue if needed.
+            this.responses.clear(); //clear the response queue if needed.
             final ChannelFuture fut = command(command);
 
-            if (!fut.await(15, TimeUnit.SECONDS)) {
+            if (!fut.await(15, SECONDS)) {
                 throw new TimeoutException("command: " + command + " timedout");
             }
 
-            final NSQFrame frame = responses.poll(15, TimeUnit.SECONDS);
+            final NSQFrame frame = this.responses.poll(15, SECONDS);
             if (frame == null) {
                 throw new TimeoutException("command: " + command + " timedout");
             }
 
-            requests.poll(); //clear the request object
+            this.requests.poll(); //clear the request object
             return frame;
         } catch (final InterruptedException e) {
             close();
-            LogManager.getLogger(this).warn("Thread was interruped!", e);
+            LOG.warn("Thread was interrupted!", e);
         }
         return null;
     }
 
     public ChannelFuture command(final NSQCommand command) {
-        return channel.writeAndFlush(command);
+        return this.channel.writeAndFlush(command);
     }
 
     public ServerAddress getServerAddress() {
@@ -187,7 +205,7 @@ public class Connection {
         return config;
     }
 
-    public void setConsumer(final NSQConsumer consumer) {
-        this.consumer = consumer;
+    public void setMessageCallback(final NSQMessageCallback messageCallback) {
+        this.messageCallback = messageCallback;
     }
 }

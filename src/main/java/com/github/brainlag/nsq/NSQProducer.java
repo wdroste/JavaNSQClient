@@ -1,5 +1,15 @@
 package com.github.brainlag.nsq;
 
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
+
+import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
+import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
+
 import com.github.brainlag.nsq.exceptions.BadMessageException;
 import com.github.brainlag.nsq.exceptions.BadTopicException;
 import com.github.brainlag.nsq.exceptions.NSQException;
@@ -8,15 +18,6 @@ import com.github.brainlag.nsq.frames.ErrorFrame;
 import com.github.brainlag.nsq.frames.NSQFrame;
 import com.github.brainlag.nsq.pool.ConnectionPoolFactory;
 import com.google.common.collect.Sets;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
-
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeoutException;
 
 public class NSQProducer {
     private Set<ServerAddress> addresses = Sets.newConcurrentHashSet();
@@ -143,6 +144,17 @@ public class NSQProducer {
         return this;
     }
 
+    public NSQProducer setConfig(NSQConfig config) {
+        if (!started) {
+            this.config = config;
+        }
+        return this;
+    }
+
+    protected ExecutorService getExecutor() {
+        return executor;
+    }
+
     /**
      * This is the executor where the callbacks happen.
      * The executer can only changed before the client is started.
@@ -155,17 +167,6 @@ public class NSQProducer {
             this.executor = executor;
         }
         return this;
-    }
-
-    public NSQProducer setConfig(NSQConfig config) {
-        if (!started) {
-            this.config = config;
-        }
-        return this;
-    }
-
-    protected ExecutorService getExecutor() {
-        return executor;
     }
 
     public GenericKeyedObjectPool<ServerAddress, Connection> getPool() {

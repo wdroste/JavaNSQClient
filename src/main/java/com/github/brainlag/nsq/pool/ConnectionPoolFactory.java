@@ -1,17 +1,17 @@
 package com.github.brainlag.nsq.pool;
 
-import com.github.brainlag.nsq.Connection;
-import com.github.brainlag.nsq.NSQCommand;
-import com.github.brainlag.nsq.NSQConfig;
-import com.github.brainlag.nsq.ServerAddress;
 import io.netty.channel.ChannelFuture;
 import org.apache.commons.pool2.BaseKeyedPooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 
+import com.github.brainlag.nsq.Connection;
+import com.github.brainlag.nsq.NSQCommand;
+import com.github.brainlag.nsq.NSQConfig;
+import com.github.brainlag.nsq.ServerAddress;
+
 public class ConnectionPoolFactory extends BaseKeyedPooledObjectFactory<ServerAddress, Connection> {
     private NSQConfig config;
-
 
     public ConnectionPoolFactory(NSQConfig config) {
         this.config = config;
@@ -19,9 +19,8 @@ public class ConnectionPoolFactory extends BaseKeyedPooledObjectFactory<ServerAd
 
     @Override
     public Connection create(final ServerAddress serverAddress) throws Exception {
-        return new Connection(serverAddress, config);
+        return new Connection(serverAddress, this.config);
     }
-
 
     @Override
     public PooledObject<Connection> wrap(final Connection con) {

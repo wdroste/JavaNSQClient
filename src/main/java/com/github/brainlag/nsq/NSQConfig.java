@@ -1,17 +1,17 @@
 package com.github.brainlag.nsq;
 
-import com.google.common.base.Preconditions;
-import io.netty.channel.EventLoopGroup;
-import io.netty.handler.ssl.SslContext;
-import org.apache.logging.log4j.LogManager;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+import io.netty.channel.EventLoopGroup;
+import io.netty.handler.ssl.SslContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
+
 public class NSQConfig {
-
-
-    public enum Compression {NO_COMPRESSION, DEFLATE, SNAPPY}
+    private static final Logger LOG = LoggerFactory.getLogger(NSQConfig.class);
 
     private String clientId;
     private String hostname;
@@ -34,7 +34,7 @@ public class NSQConfig {
             hostname = InetAddress.getLocalHost().getCanonicalHostName();
             userAgent = "JavaNSQClient";
         } catch (UnknownHostException e) {
-            LogManager.getLogger(this).error("Local host name could not resolved", e);
+            LOG.error("Local host name could not resolved", e);
         }
     }
 
@@ -118,7 +118,6 @@ public class NSQConfig {
         this.msgTimeout = msgTimeout;
     }
 
-
     public SslContext getSslContext() {
         return sslContext;
     }
@@ -174,4 +173,6 @@ public class NSQConfig {
 
         return buffer.toString();
     }
+
+    public enum Compression {NO_COMPRESSION, DEFLATE, SNAPPY}
 }
