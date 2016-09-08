@@ -12,6 +12,9 @@ import lombok.Builder;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.BlockingSink;
+import reactor.core.publisher.EmitterProcessor;
+import reactor.core.publisher.Flux;
 
 import com.github.brainlag.nsq.Connection;
 import com.github.brainlag.nsq.NSQConfig;
@@ -24,7 +27,7 @@ import com.google.common.collect.Maps;
  * Reactive Streams based consumer with backpressure.
  */
 @Builder
-public class RxNSQConsumer implements Publisher<NSQMessage> {
+public class RxNSQConsumer {
     final NSQLookup lookup;
     final String topic;
     final String channel;
@@ -33,33 +36,10 @@ public class RxNSQConsumer implements Publisher<NSQMessage> {
 
     private final Map<ServerAddress, Connection> connections = Maps.newHashMap();
 
-    @Override
-    public void subscribe(Subscriber<? super NSQMessage> subscriber) {
+    public Flux<NSQMessage> start() {
         //this.scheduler.scheduleAtFixedRate(this::connect, 0, this.lookupPeriod, MILLISECONDS);
-
-        subscriber.onSubscribe(new Subscription() {
-            @Override
-            public void request(long l) {
-
-            }
-
-            @Override
-            public void cancel() {
-
-            }
-        });
-
+        EmitterProcessor.create();
     }
-
-
-    private final AtomicLong totalMessages = new AtomicLong(0L);
-    private volatile long nextTimeout = 0;
-    private boolean started = false;
-    private int messagesPerBatch = 200;
-    private long lookupPeriod = 60 * 1000; // how often to recheck for new nodes (and clean up non responsive nodes)
-    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private Executor executor = Executors.newCachedThreadPool();
-    private Optional<ScheduledFuture<?>> timeout = Optional.empty();
 
 
 //    public NSQConsumer start() {
