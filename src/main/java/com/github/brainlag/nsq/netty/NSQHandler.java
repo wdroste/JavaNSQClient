@@ -2,11 +2,13 @@ package com.github.brainlag.nsq.netty;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import lombok.val;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.brainlag.nsq.Connection;
 import com.github.brainlag.nsq.frames.NSQFrame;
+
+import static com.github.brainlag.nsq.AbstractNSQConnection.STATE;
 
 
 public class NSQHandler extends SimpleChannelInboundHandler<NSQFrame> {
@@ -15,9 +17,9 @@ public class NSQHandler extends SimpleChannelInboundHandler<NSQFrame> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-        Connection connection = ctx.channel().attr(Connection.STATE).get();
-        if (connection != null) {
-            LOG.info("Channel disconnected! {}", connection);
+        val con = ctx.channel().attr(STATE).get();
+        if (con != null) {
+            LOG.info("Channel disconnected! {}", con);
         } else {
             LOG.error("No connection set for {}", ctx.channel());
         }
@@ -29,7 +31,7 @@ public class NSQHandler extends SimpleChannelInboundHandler<NSQFrame> {
         LOG.error("NSQHandler exception caught", cause);
 
         ctx.channel().close();
-        Connection con = ctx.channel().attr(Connection.STATE).get();
+        val con = ctx.channel().attr(STATE).get();
         if (con != null) {
             con.close();
         } else {
@@ -39,7 +41,7 @@ public class NSQHandler extends SimpleChannelInboundHandler<NSQFrame> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, NSQFrame msg) throws Exception {
-        final Connection con = ctx.channel().attr(Connection.STATE).get();
+        val con = ctx.channel().attr(STATE).get();
         if (con != null) {
             ctx.channel().eventLoop().execute(() -> con.incoming(msg));
         } else {

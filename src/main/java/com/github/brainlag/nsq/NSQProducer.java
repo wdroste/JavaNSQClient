@@ -25,7 +25,7 @@ public class NSQProducer {
     private volatile boolean started = false;
     private ExecutorService executor = Executors.newCachedThreadPool();
     private GenericKeyedObjectPoolConfig poolConfig = null;
-    private GenericKeyedObjectPool<ServerAddress, Connection> pool;
+    private GenericKeyedObjectPool<ServerAddress, NSQConnection> pool;
     private NSQConfig config = new NSQConfig();
     private int connectionRetries = 5;
 
@@ -46,7 +46,7 @@ public class NSQProducer {
         pool = new GenericKeyedObjectPool<>(new ConnectionPoolFactory(config), poolConfig);
     }
 
-    protected Connection getConnection() throws NoConnectionsException {
+    protected NSQConnection getConnection() throws NoConnectionsException {
         int c = 0;
         while (c < connectionRetries) {
             ServerAddress[] serverAddresses = addresses.toArray(new ServerAddress[addresses.size()]);
@@ -84,7 +84,7 @@ public class NSQProducer {
             return;
         }
 
-        Connection c = this.getConnection();
+        NSQConnection c = this.getConnection();
         try {
             NSQCommand command = NSQCommand.instance("MPUB " + topic);
             command.setData(messages);
@@ -109,7 +109,7 @@ public class NSQProducer {
         if (!started) {
             throw new IllegalStateException("Producer must be started before producing messages!");
         }
-        Connection c = getConnection();
+        NSQConnection c = getConnection();
         try {
             NSQCommand command = NSQCommand.instance("PUB " + topic, message);
             NSQFrame frame = c.commandAndWait(command);
@@ -169,7 +169,7 @@ public class NSQProducer {
         return this;
     }
 
-    public GenericKeyedObjectPool<ServerAddress, Connection> getPool() {
+    public GenericKeyedObjectPool<ServerAddress, NSQConnection> getPool() {
         return pool;
     }
 

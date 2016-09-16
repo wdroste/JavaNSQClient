@@ -12,7 +12,7 @@ public class NSQMessage {
     byte[] message;
     final Date timestamp;
 
-    private final Connection connection;
+    private final AbstractNSQConnection connection;
 
     /**
      * Finished processing this message, let nsq know so it doesnt get reprocessed.
