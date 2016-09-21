@@ -19,6 +19,9 @@ public class NSQConnection extends AbstractNSQConnection {
         assert messageCallback != null && errorCallback != null;
         this.messageCallback = messageCallback;
         this.errorCallback = errorCallback;
+
+        // make sure that error and message callbacks are set first..
+        init();
     }
 
     protected void processMessage(final NSQMessage message) {

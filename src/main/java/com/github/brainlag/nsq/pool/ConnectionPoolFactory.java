@@ -25,7 +25,7 @@ public class ConnectionPoolFactory extends BaseKeyedPooledObjectFactory<ServerAd
         };
         NSQErrorCallback errorCallback = (ex) -> {
         };
-        return new NSQConnection(serverAddress, this.config, callback, errorCallback, 200);
+        return new NSQConnection(serverAddress, this.config, callback, errorCallback);
     }
 
     @Override

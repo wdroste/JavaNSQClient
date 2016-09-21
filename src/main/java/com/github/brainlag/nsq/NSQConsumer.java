@@ -14,17 +14,12 @@ public class NSQConsumer extends AbstractNSQConsumer {
     private final NSQMessageCallback callback;
     private final NSQErrorCallback errorCallback;
 
-    public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback) {
-        this(lookup, topic, channel, callback, new NSQConfig());
-    }
-
-    public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback,
-                       final NSQConfig config) {
-        this(lookup, topic, channel, callback, config, null);
-    }
-
-    public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback,
-                       final NSQConfig config, final NSQErrorCallback errCallback) {
+    public NSQConsumer(final NSQLookup lookup,
+                       final String topic,
+                       final String channel,
+                       final NSQMessageCallback callback,
+                       final NSQConfig config,
+                       final NSQErrorCallback errCallback) {
         super(lookup, topic, channel, config);
         this.callback = callback;
         this.errorCallback = errCallback;

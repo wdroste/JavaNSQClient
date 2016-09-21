@@ -18,6 +18,8 @@ public class RxNSQConnection extends AbstractNSQConnection {
             throws NoConnectionsException {
         super(serverAddress, config);
         this.processor = processor;
+        // initialize
+        init();
     }
 
     @Override

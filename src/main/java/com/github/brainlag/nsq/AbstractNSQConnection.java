@@ -44,32 +44,37 @@ public abstract class AbstractNSQConnection implements Closeable {
     private final NSQConfig config;
     private final ServerAddress address;
 
-    private final Channel channel;
     private final LinkedBlockingQueue<NSQCommand> requests = new LinkedBlockingQueue<>(1);
     private final LinkedBlockingQueue<NSQFrame> responses = new LinkedBlockingQueue<>(1);
     private final EventLoopGroup eventLoopGroup;
 
     private final AtomicLong totalMessages = new AtomicLong(0l);
 
+    private Channel channel;
+
     public AbstractNSQConnection(final ServerAddress serverAddress,
                                  final NSQConfig config)
             throws NoConnectionsException {
         this.config = config;
         this.address = serverAddress;
-        val bootstrap = new Bootstrap();
         this.eventLoopGroup = config.getEventLoopGroup() != null ? config.getEventLoopGroup() : getDefaultGroup();
+    }
+
+    protected void init() {
+        val bootstrap = new Bootstrap();
         bootstrap.group(this.eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.handler(new NSQClientInitializer());
+
         // Start the connection attempt.
-        val future = bootstrap.connect(new InetSocketAddress(serverAddress.getHost(), serverAddress.getPort()));
+        val future = bootstrap.connect(new InetSocketAddress(this.address.getHost(), this.address.getPort()));
 
         // Wait until the connection attempt succeeds or fails.
         this.channel = future.awaitUninterruptibly().channel();
         if (!future.isSuccess()) {
             throw new NoConnectionsException("Could not connect to server", future.cause());
         }
-        log.info("Created connection: {}", serverAddress);
+        log.info("Created connection: {}", this.address);
         this.channel.attr(STATE).set(this);
         final ByteBuf buf = Unpooled.buffer();
         buf.writeBytes(MAGIC_PROTOCOL_VERSION);
