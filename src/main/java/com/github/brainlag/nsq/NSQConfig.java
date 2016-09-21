@@ -49,4 +49,42 @@ public class NSQConfig {
     }
 
     public enum Compression {NO_COMPRESSION, DEFLATE, SNAPPY}
+
+    // use for configuring the connection.
+    public String toJSON() {
+        StringBuffer buffer = new StringBuffer();
+        buffer.append("{\"client_id\":\"" + clientId + '"');
+        buffer.append(", \"hostname\":\"" + hostname + '"');
+        buffer.append(", \"feature_negotiation\": true");
+        if (getHeartbeatInterval() != null) {
+            buffer.append(", \"heartbeat_interval\":" + getHeartbeatInterval());
+        }
+        if (getOutputBufferSize() != null) {
+            buffer.append(", \"output_buffer_size\":" + getOutputBufferSize());
+        }
+        if (getOutputBufferTimeout() != null) {
+            buffer.append(", \"output_buffer_timeout\":" + getOutputBufferTimeout());
+        }
+        if (isTlsV1()) {
+            buffer.append(", \"tls_v1\":" + isTlsV1());
+        }
+        if (getCompression() == Compression.SNAPPY) {
+            buffer.append(", \"snappy\": true");
+        }
+        if (getCompression() == Compression.DEFLATE) {
+            buffer.append(", \"deflate\": true");
+        }
+        if (getDeflateLevel() != null) {
+            buffer.append(", \"deflate_level\":" + getDeflateLevel());
+        }
+        if (getSampleRate() != null) {
+            buffer.append(", \"sample_rate\":" + getSampleRate());
+        }
+        if (getMsgTimeout() != null) {
+            buffer.append(", \"msg_timeout\":" + getMsgTimeout());
+        }
+        buffer.append(", \"user_agent\": \"" + userAgent + "\"}");
+
+        return buffer.toString();
+    }
 }

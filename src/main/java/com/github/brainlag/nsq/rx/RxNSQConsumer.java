@@ -34,7 +34,7 @@ public class RxNSQConsumer extends AbstractNSQConsumer {
                          final String channel) {
         super(lookup, topic, channel, config);
         val cores = Runtime.getRuntime().availableProcessors();
-        val threadFactory = new ThreadFactoryBuilder().setDaemon(true).setNameFormat("consumer-%d").build();
+        val threadFactory = new ThreadFactoryBuilder().setNameFormat("consumer-%d").build();
         this.executorService = Executors.newFixedThreadPool(cores, threadFactory);
         this.processor = WorkQueueProcessor.share(this.executorService);
     }

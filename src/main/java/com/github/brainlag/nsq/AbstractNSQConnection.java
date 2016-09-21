@@ -26,6 +26,7 @@ import com.github.brainlag.nsq.frames.MessageFrame;
 import com.github.brainlag.nsq.frames.NSQFrame;
 import com.github.brainlag.nsq.frames.ResponseFrame;
 import com.github.brainlag.nsq.netty.NSQClientInitializer;
+import com.google.common.base.Charsets;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -82,7 +83,8 @@ public abstract class AbstractNSQConnection implements Closeable {
         this.channel.flush();
 
         //identify
-        val ident = NSQCommand.instance("IDENTIFY", config.toString().getBytes());
+        val json = this.config.toJSON();
+        val ident = NSQCommand.instance("IDENTIFY", json.getBytes(Charsets.UTF_8));
         try {
             val response = this.commandAndWait(ident);
             if (response != null) {

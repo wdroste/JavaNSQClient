@@ -2,6 +2,7 @@ package com.github.brainlag.nsq;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -15,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
+import lombok.val;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,20 +24,16 @@ import org.slf4j.LoggerFactory;
 import com.github.brainlag.nsq.exceptions.NSQException;
 import com.github.brainlag.nsq.lookup.DefaultNSQLookup;
 import com.github.brainlag.nsq.lookup.NSQLookup;
+import com.github.brainlag.nsq.rx.RxNSQConsumer;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 
+import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NSQProducerTest {
     private static final Logger LOG = LoggerFactory.getLogger(NSQProducerTest.class);
-
-    public static ExecutorService newBackoffThreadExecutor() {
-        return new ThreadPoolExecutor(1, 1,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(1));
-    }
 
     private NSQConfig getSnappyConfig() {
         final NSQConfig config = new NSQConfig();
@@ -98,6 +96,28 @@ public class NSQProducerTest {
             Thread.sleep(500);
         }
         assertEquals(1, counter.get());
+        consumer.close();
+    }
+
+    @Test
+    public void testProduceOneMsgSnappyRx() throws Exception {
+        NSQLookup lookup = new DefaultNSQLookup();
+        lookup.addLookupAddress("localhost", 4161);
+
+        NSQProducer producer = new NSQProducer();
+        producer.setConfig(getSnappyConfig());
+        producer.addAddress("localhost", 4150);
+        producer.start();
+        String msg = randomString();
+        producer.produce("test3", msg.getBytes());
+        producer.shutdown();
+
+        RxNSQConsumer consumer = new RxNSQConsumer(getSnappyConfig(), lookup, "test3", "testconsumer");
+
+        val message = consumer.start().timeout(Duration.of(10, SECONDS)).blockFirst();
+        String actual = new String(message.message);
+        assertEquals(msg, actual);
+
         consumer.close();
     }
 
@@ -221,7 +241,7 @@ public class NSQProducerTest {
             LOG.info("Processing message: " + new String(message.message));
             counter.incrementAndGet();
             message.finished();
-        }, this.getDeflateConfig(), x -> {});
+        }, new NSQConfig(), x -> {});
         consumer.start();
 
         NSQProducer producer = new NSQProducer();

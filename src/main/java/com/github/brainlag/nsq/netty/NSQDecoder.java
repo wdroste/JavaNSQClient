@@ -18,17 +18,17 @@ public class NSQDecoder extends MessageToMessageDecoder<ByteBuf> {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-        size = in.readInt();
+        this.size = in.readInt();
         int id = in.readInt();
-        frame = NSQFrame.instance(id);
-        if (frame == null) {
+        this.frame = NSQFrame.instance(id);
+        if (this.frame == null) {
             //uhh, bad response from server..  what should we do?
             throw new IllegalStateException("Bad frame id from server (" + id + ").  disconnect!");
         }
-        frame.setSize(size);
-        ByteBuf bytes = in.readBytes(frame.getSize() - 4); //subtract 4 because the frame id is included
-        frame.setData(bytes.array());
-        out.add(frame);
+        this.frame.setSize(this.size);
+        ByteBuf bytes = in.readBytes(this.frame.getSize() - 4); //subtract 4 because the frame id is included
+        this.frame.setData(bytes.array());
+        out.add(this.frame);
     }
 
 }
