@@ -1,16 +1,15 @@
 package com.github.brainlag.nsq;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import com.github.brainlag.nsq.callbacks.NSQErrorCallback;
 import com.github.brainlag.nsq.callbacks.NSQMessageCallback;
 import com.github.brainlag.nsq.exceptions.NoConnectionsException;
 import com.github.brainlag.nsq.lookup.NSQLookup;
 
+@Slf4j
 public class NSQConsumer extends AbstractNSQConsumer {
-    private static final Logger LOG = LoggerFactory.getLogger(NSQConsumer.class);
-
     private final NSQMessageCallback callback;
     private final NSQErrorCallback errorCallback;
 
@@ -32,14 +31,12 @@ public class NSQConsumer extends AbstractNSQConsumer {
 
     protected NSQConnection createConnection(final ServerAddress serverAddress) {
         try {
-            final NSQConnection connection = new NSQConnection(
-                    serverAddress, config, this.callback, this.errorCallback);
-            connection.command(NSQCommand.instance("SUB " + this.topic + " " + this.channel));
-            connection.command(NSQCommand.instance("RDY " + this.config.getMessagesPerBatch()));
-
-            return connection;
+            val conn = new NSQConnection(serverAddress, this.config, this.callback, this.errorCallback);
+            conn.command(NSQCommand.instance("SUB " + this.topic + " " + this.channel));
+            conn.command(NSQCommand.instance("RDY " + this.config.getMessagesPerBatch()));
+            return conn;
         } catch (final NoConnectionsException e) {
-            LOG.warn("Could not create connection to server {} - {}", serverAddress, e.getMessage());
+            log.warn("Could not create connection to server {} - {}", serverAddress, e.getMessage());
             return null;
         }
     }
